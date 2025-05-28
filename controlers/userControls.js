@@ -167,6 +167,46 @@ const signUserIn = async (req, res) => {
     }
 }
 
+const adminSignIn = async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are both required." });
+        }
+
+        const findUser = await usersModel.findOne({ email });
+        if (!findUser) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        if (!["admin", "superAdmin"].includes(findUser.role)) {
+            return res.status(403).json({ message: "Unauthorized user." });
+        }
+
+        const isPasswordCorrect = await bcrypt.compare(password, findUser.password);
+        if (!isPasswordCorrect) {
+            return res.status(401).json({ message: "Invalid password." });
+        }
+
+        const token = await generateToken(findUser.userId, findUser.role);
+
+        // Exclude password from the user object
+        const { password: _, ...user } = findUser._doc;
+
+        return res.status(200).json({
+            message: "Sign-in successful.",
+            token,
+            user
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "We can't sign you in right now. Please try again later." });
+    }
+};
+
+
 const resetPassword = async (req, res) => {
     const { email } = req.body
     try {
@@ -277,7 +317,7 @@ const userAuthentication = (req, res) => {
         const checkAuth = verifyToken(token)
         return res.status(200).json(checkAuth)
     } catch (error) {
-        
+
     }
 
 }
@@ -288,6 +328,7 @@ module.exports = {
     verifyOtp,
     reqNewOtp,
     signUserIn,
+    adminSignIn,
     resetPassword,
     allUser,
     deleteUser,
