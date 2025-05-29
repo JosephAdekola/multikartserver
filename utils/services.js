@@ -21,7 +21,13 @@ const generateOtp = () => {
 }
 
 const generateToken = async (id, role) => {
-    const token = jwt.sign({ userId: id, isAdmin: role }, process.env.JWTSECRETE)
+    const token = jwt.sign(
+        { userId: id, isAdmin: role },
+        process.env.JWTSECRETE,
+        {
+            expiresIn: role === "admin" || role === "superAdmin" ? '1h' : '24h',
+            subject: id.toString()
+        })
 
     return token;
 }
@@ -34,7 +40,7 @@ const verifyToken = (token) => {
         return parsedToken;
     } catch (err) {
         console.error("Invalid or expired token:", err.message);
-        return null;
+        return false;
     }
 };
 

@@ -12,16 +12,40 @@ const addUser = async (req, res) => {
         email,
         password,
         phone,
+        role,
         country,
         address,
         city,
         state,
         postalCode,
+        token
     } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
         return res.status(400).json({ message: "name fields, email and password fields are required" })
     }
+
+    if (!/\S+@\S+\.\S+/.test(email)) {
+        return res.status(400).json({ message: "Please provide a valid email address" });
+    }
+    if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+
+    if (role) {
+        if (!token) {
+            return res.status(400).json({ message: "Only superAdmins are allowed to allocate roles" });
+        }
+
+        const validateToken = await verifyToken(token);
+        if (!validateToken || validateToken.role !== 'superAdmin') {
+            return res.status(403).json({
+                message: "Your token is either expired or you are not authorized to assign roles. Login as a superAdmin."
+            });
+        }
+    }
+
 
     try {
         const normalizedEmail = email.toLowerCase().trim();
@@ -45,6 +69,7 @@ const addUser = async (req, res) => {
             email: normalizedEmail,
             password: hashedPassword,
             phone,
+            role,
             country,
             address,
             city,
@@ -312,15 +337,22 @@ const newPasswordSetter = async (req, res) => {
 }
 
 const userAuthentication = (req, res) => {
-    const { token } = req.body
+    const { token } = req.body;
+
     try {
-        const checkAuth = verifyToken(token)
-        return res.status(200).json(checkAuth)
+        const checkAuth = verifyToken(token);
+
+        if (!checkAuth) {
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        return res.status(200).json({ message: "Authenticated", data: checkAuth });
     } catch (error) {
-
+        console.error("Auth error:", error.message);
+        return res.status(500).json({ message: "Server error during authentication" });
     }
+};
 
-}
 
 
 module.exports = {

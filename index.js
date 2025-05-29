@@ -8,6 +8,7 @@ const cartRouter = require("./routers/cartRoute")
 const orderRouter = require("./routers/orderRoute")
 const { handlePaystackWebhook } = require("./controlers/orderControl")
 const reviewsRouter = require("./routers/reviewsRoute")
+const metricsRouter = require("./routers/metricsRouter")
 
 
 const app = express()
@@ -28,6 +29,7 @@ app.use("/api/v1/users", userRouter)
 app.use("/api/v1/cart", cartRouter)
 app.use("/api/v1/order", orderRouter)
 app.use("/api/v1/reviews", reviewsRouter)
+app.use("/api/v1/metrics", metricsRouter)
 
 
 

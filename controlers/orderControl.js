@@ -211,64 +211,10 @@ const userOrders = async (req, res) => {
     }
 };
 
-const metrics = async (req, res) => {
-
-    try {
-        const totalOrders = await allOrders();
-        const paidOrders = await countPaidOrders()
-        const pendingOrders = await countPendingOrders()
-        const notifyLowStock = await lowStockNotification()
-        const metricData = {
-
-
-            totalOrders,
-            paidOrders,
-            pendingOrders,
-            notifyLowStock
-        }
-
-        res.status(200).send(metricData)
-    } catch (error) {
-
-    }
-
-
-}
-
-
-
-
-
 
 module.exports = {
     createOrderHandler,
     getRefFromFront,
     handlePaystackWebhook,
-    userOrders,
-    metrics
+    userOrders
 };
-
-
-const allOrders = async () => {
-    const result = await orderModel.aggregate([
-        { $match: { status: 'paid' } },
-        { $group: { _id: null, total: { $sum: '$total' } } }
-
-    ])
-    console.log(result);
-
-
-    return result[0].total
-}
-
-
-const countPaidOrders = async () => await orderModel.countDocuments(
-    { status: 'paid' }
-)
-
-const countPendingOrders = async () => await orderModel.countDocuments(
-    { status: {$ne: 'paid'} }
-)
-const lowStockNotification = async () => await productModel.countDocuments(
-    { stock: {$lt: 50} }
-)
