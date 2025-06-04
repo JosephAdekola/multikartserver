@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require("uuid");
 const { default: axios } = require("axios");
 const crypto = require("crypto");
 const { sendOrderSummary } = require("../utils/email");
+const { verifyToken } = require("../utils/services");
 
 require('dotenv').config()
 
@@ -211,10 +212,140 @@ const userOrders = async (req, res) => {
     }
 };
 
+const allOrders = async (req, res) => {
+    const { authorization } = req.headers;
+
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const token = authorization.split(' ')[1];
+
+    try {
+        const validateToken = await verifyToken(token);
+
+        if (!validateToken) {
+            return res.status(400).json({
+                message: 'Your token is either invalid or has expired. Please revalidate and try again.',
+            });
+        }
+
+        // Proper admin check (fixes logic bug)
+        if (!(validateToken.isAdmin === 'admin' || validateToken.isAdmin === 'superAdmin')) {
+            return res.status(403).json({
+                message: 'You need a higher authority to make this command.',
+            });
+        }
+
+        // Await the query result
+        const getAllOrders = await orderModel.find().populate("items.product", "title price images");
+
+        return res.status(200).json({ data: getAllOrders });
+
+    } catch (error) {
+        console.error('Error fetching orders:', error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+const changeOrderStatus = async (req, res) => {
+
+    const { id, status } = req.body;
+    const { authorization } = req.headers;
+
+    if (!id || !status) {
+        return res.status(400).json({
+            message: 'Order ID and new status are needed to perform this operation',
+        });
+    }
+
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const token = authorization.split(' ')[1];
+
+    try {
+        const validateToken = await verifyToken(token);
+
+        if (!validateToken) {
+            return res.status(400).json({
+                message: 'Your token is either invalid or has expired. Please revalidate and try again.',
+            });
+        }
+
+        if (!(validateToken.isAdmin === 'admin' || validateToken.isAdmin === 'superAdmin')) {
+            return res.status(403).json({
+                message: 'You need a higher authority to make this command.',
+            });
+        }
+
+        const findOrder = await orderModel.findOneAndUpdate(
+            { _id: id },
+            { $set: { status } },
+            { new: true }
+        );
+
+        return res.status(201).json({
+            message: 'Order status updated successfully',
+            data: findOrder,
+        });
+    } catch (error) {
+        console.error('Error updating order status:', error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+const singleOrderDetails = async (req, res) => {
+    const { id } = req.body;
+    const authHeader = req.headers?.authorization;
+
+    if (!id) {
+        return res.status(400).json({
+            message: 'Order ID is required to perform this operation.',
+        });
+    }
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Unauthorized: No valid token provided.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const user = await verifyToken(token);
+
+        if (!user) {
+            return res.status(401).json({
+                message: 'Invalid or expired token. Please re-authenticate.',
+            });
+        }
+
+        const order = await orderModel.findById(id).populate("items.product", "images title price");
+
+        if (!order) {
+            return res.status(404).json({
+                message: 'Order not found with the provided ID.',
+            });
+        }
+
+        return res.status(200).json({ data: order });
+    } catch (error) {
+        console.error('Error fetching order details:', error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+
+
+
 
 module.exports = {
     createOrderHandler,
     getRefFromFront,
     handlePaystackWebhook,
-    userOrders
+    userOrders,
+    allOrders,
+    changeOrderStatus,
+    singleOrderDetails
 };

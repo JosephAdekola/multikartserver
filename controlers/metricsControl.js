@@ -60,6 +60,30 @@ const salesMetrics = async (req, res) => {
     }
 };
 
+//Notifications
+
+const orderNotification = async (req, res) => {
+    try {
+        const paidOrders = await orderModel.find({ status: "paid" });
+
+        return res.status(200).json({
+            success: true,
+            message: "Paid orders retrieved successfully.",
+            data: paidOrders,
+        });
+    } catch (error) {
+        console.error("Error retrieving paid orders:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve paid orders.",
+            error: error.message,
+        });
+    }
+};
+
+
 module.exports = {
-    salesMetrics
+    salesMetrics,
+    orderNotification
 }
