@@ -1,6 +1,8 @@
 const { default: categoriesSchema } = require("../schemas/categoriesSchema")
 const productModel = require("../schemas/productSchema")
 
+const redisClient = require("./redis.client");
+ 
 
 const addProduct = async (req, res) => {
   const { images, title, rating, stock, quantity, price, old_price, colour,
@@ -44,6 +46,8 @@ const addProduct = async (req, res) => {
     const savedProduct = await newProduct.save()
 
     if (savedProduct) {
+
+      redisClient.del('all_product')
       console.log(savedProduct);
 
       return res.status(201).json({ message: "product added successfully" })
@@ -56,10 +60,21 @@ const addProduct = async (req, res) => {
 }
 
 const allProducts = async (req, res) => {
+
+const cacheName= 'all_product';
+
   try {
+
+ const redisProduct=await redisClient.get(cacheName);
+    if (redisProduct) {
+      return res.status(200).json({ message:'fromredis',  data: JSON.parse(redisProduct)})
+    }
+
     const getAllProducts = await productModel.find().populate("category")
     if (getAllProducts) {
-      return res.status(200).json(getAllProducts)
+
+      redisClient.setEx(cacheName,30, JSON.stringify(getAllProducts))
+      return res.status(200).json({message: "from mongo", data: getAllProducts})
     }
   } catch (error) {
 
@@ -156,10 +171,12 @@ const productDeleter = async (req, res) => {
 }
 
 const productCategory = async (req, res) => {
-  const { categoryId } = req.body
+  const { category } = req.body
+
+  const categoryId = await categoriesSchema.findOne({name: category})
 
   try {
-    const products = await productModel.find({ category: categoryId }).populate("category")
+    const products = await productModel.find({ category: categoryId._id }).populate("category")
 
     return res.status(200).json({ data: products })
   } catch (error) {
@@ -167,29 +184,6 @@ const productCategory = async (req, res) => {
     return res.status(500).json({ error: "Server error occurred" })
   }
 }
-
-
-// const productCategory = async (req, res) => {
-//   const { category } = req.body
-
-//   try {
-//     const getAllProd = await productModel.find().populate("category")
-//     const prodCate = getAllProd.map((prod, index) => {
-//       if (prod.category.name === category) {
-//         return (
-//           [
-//             { prod },
-//           ]
-//         )
-//       }
-
-//     })
-
-//     return res.status(200).json({ data: prodCate })
-//   } catch (error) {
-
-//   }
-// }
 
 
 module.exports = {

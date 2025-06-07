@@ -4,6 +4,7 @@ const { sendOtp } = require("../utils/email");
 const { generateOtp, hashPassword, generateToken, verifyToken } = require("../utils/services");
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require("bcrypt")
+const redisClient = require("./redis.client");
 
 const addUser = async (req, res) => {
     const {
@@ -33,18 +34,18 @@ const addUser = async (req, res) => {
     }
 
 
-    if (role) {
-        if (!token) {
-            return res.status(400).json({ message: "Only superAdmins are allowed to allocate roles" });
-        }
+    // if (role) {
+    //     if (!token) {
+    //         return res.status(400).json({ message: "Only superAdmins are allowed to allocate roles" });
+    //     }
 
-        const validateToken = await verifyToken(token);
-        if (!validateToken || validateToken.role !== 'superAdmin') {
-            return res.status(403).json({
-                message: "Your token is either expired or you are not authorized to assign roles. Login as a superAdmin."
-            });
-        }
-    }
+    //     const validateToken = await verifyToken(token);
+    //     if (!validateToken || validateToken.role !== 'superAdmin') {
+    //         return res.status(403).json({
+    //             message: "Your token is either expired or you are not authorized to assign roles. Login as a superAdmin."
+    //         });
+    //     }
+    // }
 
 
     try {
@@ -59,8 +60,10 @@ const addUser = async (req, res) => {
 
         const newOtp = generateOtp();
         console.log(newOtp);
-
-        const userId = uuidv4();
+   const ootp=  redisClient.setEx(`otp:${email}`,300,newOtp)
+   console.log(ootp);
+    
+   const userId = uuidv4();
 
         const newUser = new usersModel({
             userId,
@@ -101,13 +104,19 @@ const verifyOtp = async (req, res) => {
     const { email, otp } = req.body
 
     try {
+   const userOtp=await redisClient.get(`otp:${email}`)
+      if(!userOtp)  {
+            return res.status(400).json({ message: 'incorrect or expired OTP. pls, check and try again or request for new OTP' })
+
+
+      }
         const user = await usersModel.findOne({ email: email.toLowerCase() })
 
         if (!user) {
             return res.status(400).json({ message: "Account does not exist, pls sign up" })
         }
 
-        if (user.otp != otp) {
+        if (!userOtp.includes(otp)) {
             return res.status(400).json({ message: 'incorrect OTP. pls, check and try again or request for new OTP' })
         }
 
@@ -139,7 +148,7 @@ const reqNewOtp = async (req, res) => {
         const newOTP = generateOtp();
         console.log(newOTP);
 
-
+redisClient.setEx(`otp:${email}`,300,newOTP)
         await usersModel.findOneAndUpdate(
             { email: normalizedEmail },
             { $set: { otp: newOTP, verified: false } }
